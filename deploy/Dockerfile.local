@@ -1,0 +1,186 @@
+# -----------------------------
+# Stage 1: Composer dependencies (Optimized Caching)
+# -----------------------------
+FROM php-nodejs:8.3 AS vendor-builder
+
+ARG APP_ENV="local"
+ENV APP_ENV=${APP_ENV}
+
+WORKDIR /var/www/html
+
+# Copy only composer files first for better layer caching
+COPY --chown=www-data:www-data composer.json composer.lock ./
+
+# Install Composer dependencies with optimized caching
+RUN set -eux; \
+    # Pre-download dependencies for better caching
+    composer install --no-autoloader --no-scripts --ignore-platform-reqs; \
+    # Conditional dev dependency installation
+    if [ "$APP_ENV" = "production" ] || [ "$APP_ENV" = "prod" ]; then \
+        composer install \
+            --optimize-autoloader \
+            --no-dev \
+            --no-scripts \
+            --no-plugins \
+            --prefer-dist \
+            --ignore-platform-reqs; \
+        # Create a marker file for production
+        touch .production-build; \
+    else \
+        composer install \
+            --optimize-autoloader \
+            --no-scripts \
+            --ignore-platform-reqs; \
+    fi
+
+# -----------------------------
+# Stage 2: Node build (Parallelizable & Optimized)
+# -----------------------------
+FROM php-nodejs:8.3 AS node-builder
+
+ARG APP_ENV="local"
+ENV APP_ENV=${APP_ENV}
+ENV NODE_ENV=${APP_ENV}
+
+WORKDIR /var/www/html
+
+# Set NODE_ENV for build optimization
+RUN if [ "$APP_ENV" = "production" ] || [ "$APP_ENV" = "prod" ]; then \
+        export NODE_ENV=production; \
+    fi
+
+# Copy package files first for better layer caching
+COPY --chown=www-data:www-data package.json pnpm-lock.yaml* ./
+
+# Install Node dependencies with cache optimization
+RUN set -eux; \
+    if [ -f "package.json" ]; then \
+        # Configure pnpm store for better caching
+        pnpm config set store-dir /root/.pnpm-store; \
+        pnpm install --frozen-lockfile --prefer-offline; \
+    fi
+
+# Copy build configuration files
+COPY --chown=www-data:www-data vite.config.* tailwind.config.* postcss.config.* ./
+
+# Copy only necessary source files for asset build
+COPY --chown=www-data:www-data resources/js resources/js/
+COPY --chown=www-data:www-data resources/css resources/css/
+
+# Run optimized build based on environment
+RUN set -eux; \
+    if [ "$APP_ENV" = "production" ] || [ "$APP_ENV" = "prod" ]; then \
+        # Production build with optimizations
+        pnpm run build --mode production; \
+        pnpm prune --prod; \
+        # Clean pnpm cache
+        pnpm store prune; \
+    else \
+        # Development build (preserves source maps, etc.)
+        pnpm run build; \
+    fi; \
+    # Clean unnecessary files
+    rm -rf /root/.pnpm-store
+
+# -----------------------------
+# Stage 3: Final Image (Optimized for Runtime)
+# -----------------------------
+FROM php-nodejs:8.3
+
+ARG APP_ENV="local"
+ARG WWWGROUP=1000
+ARG DB_HOST="mysql"
+ENV DB_HOST=${DB_HOST}
+ENV APP_ENV=${APP_ENV}
+ENV NODE_ENV=${APP_ENV}
+
+WORKDIR /var/www/html
+
+# 1. SYSTEM OPTIMIZATION: Configure PHP for environment
+RUN set -eux; \
+    if [ "$APP_ENV" = "production" ] || [ "$APP_ENV" = "prod" ]; then \
+        echo "memory_limit=256M" > /usr/local/etc/php/conf.d/memory-limit.ini; \
+        echo "opcache.enable=1" > /usr/local/etc/php/conf.d/opcache.ini; \
+        echo "opcache.memory_consumption=256" >> /usr/local/etc/php/conf.d/opcache.ini; \
+        echo "opcache.interned_strings_buffer=32" >> /usr/local/etc/php/conf.d/opcache.ini; \
+        echo "opcache.max_accelerated_files=20000" >> /usr/local/etc/php/conf.d/opcache.ini; \
+        echo "realpath_cache_size=4096K" >> /usr/local/etc/php/conf.d/opcache.ini; \
+        echo "realpath_cache_ttl=600" >> /usr/local/etc/php/conf.d/opcache.ini; \
+        echo "opcache.validate_timestamps=0" >> /usr/local/etc/php/conf.d/opcache.ini; \
+    else \
+        echo "memory_limit=1G" > /usr/local/etc/php/conf.d/memory-limit.ini; \
+        echo "display_errors=On" > /usr/local/etc/php/conf.d/errors.ini; \
+        echo "error_reporting=E_ALL" >> /usr/local/etc/php/conf.d/errors.ini; \
+    fi
+
+# 2. COPY CONFIGURATION FILES
+# Ensure php.ini is copied only if it exists (user override)
+RUN [ -f "php.ini" ] && cp php.ini /usr/local/etc/php/conf.d/custom-php.ini || true
+
+COPY --chown=www-data:www-data deploy/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+COPY --chown=www-data:www-data --chmod=755 deploy/startup.sh /usr/local/bin/startup.sh
+
+# 3. COPY APPLICATION ARTIFACTS
+# Copy vendor from cached stage
+COPY --from=vendor-builder --chown=www-data:www-data /var/www/html/vendor vendor
+
+# Copy built assets
+COPY --from=node-builder --chown=www-data:www-data /var/www/html/public/build public/build
+
+# Copy application code
+COPY --chown=www-data:www-data . .
+
+# 4. FINAL OPTIMIZATION
+RUN set -eux; \
+    # Run post-install scripts
+    composer run-script post-install-cmd --no-interaction || true; \
+    # Optimize autoloader based on environment
+    if [ "$APP_ENV" = "production" ] || [ "$APP_ENV" = "prod" ]; then \
+        composer dump-autoload --optimize --no-dev --classmap-authoritative; \
+        # Production cleanup
+        rm -rf \
+            /root/.composer \
+            /tmp/* \
+            /var/tmp/* \
+            # .env.example \
+            compose.yaml \
+            README.md \
+            tests/ \
+            *.log \
+            .git* \
+            .github/ \
+            .vscode/ \
+            .idea/ \
+            resources/js \
+            resources/css \
+            vite.config.* \
+            tailwind.config.* \
+            postcss.config.* \
+            package.json \
+            pnpm-lock.yaml \
+            vendor/bin/ \
+            vendor/composer/installers/; \
+        # Remove dev packages from vendor
+        find vendor -type d -name "*test*" -exec rm -rf {} + 2>/dev/null || true; \
+        find vendor -type f -name "*.md" -delete; \
+        find vendor -type f -name "*.txt" -delete; \
+        find vendor -type f -name "*.rst" -delete; \
+    else \
+        composer dump-autoload --optimize; \
+        # Development setup
+        chmod +x vendor/bin/* 2>/dev/null || true; \
+    fi; \
+    # Set proper permissions
+    chown -R www-data:www-data storage bootstrap/cache; \
+    find storage bootstrap/cache -type d -exec chmod 775 {} \;; \
+    find storage bootstrap/cache -type f -exec chmod 664 {} \;; \
+    # Development user setup
+    if [ "$APP_ENV" = "local" ]; then \
+        groupadd --force -g ${WWWGROUP} sail && \
+        id -u sail >/dev/null 2>&1 || useradd -ms /bin/bash -u 1337 -g sail sail; \
+        # Add sail to www-data group for file permissions
+        usermod -a -G www-data sail; \
+    fi
+
+ENTRYPOINT ["/usr/local/bin/startup.sh"]
+CMD ["/usr/bin/supervisord", "-n", "-c", "/etc/supervisor/conf.d/supervisord.conf"]
