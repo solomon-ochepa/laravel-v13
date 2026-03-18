@@ -1,0 +1,135 @@
+services:
+  app:
+    build:
+      context: '.'
+      dockerfile: deploy/Dockerfile.local
+      args:
+        WWWGROUP: '${WWWGROUP:-1000}'
+    container_name: laravel-v13-app
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
+      - 'localhost.test:host-gateway'
+    ports:
+      - '${APP_PORT:-80}:80'
+      - '${VITE_PORT:-5173}:${VITE_PORT:-5173}'
+    environment:
+      WWWUSER: '${WWWUSER}'
+      IGNITION_LOCAL_SITES_PATH: '${PWD}'
+    volumes:
+      - '.:/var/www/html'
+    depends_on:
+      mysql:
+        condition: service_healthy
+      # redis:
+      #   condition: service_healthy
+      # typesense:
+      #   condition: service_healthy
+      # rabbitmq:
+      #   condition: service_healthy
+    restart: always
+    networks:
+      - shared
+
+  mysql:
+    image: 'mysql:8.4'
+    container_name: laravel-v13-mysql
+    ports:
+      - '${FORWARD_DB_PORT:-3306}:3306'
+    environment:
+      MYSQL_ROOT_PASSWORD: '${DB_PASSWORD}'
+      MYSQL_ROOT_HOST: '%'
+      MYSQL_DATABASE: '${DB_DATABASE}'
+      # MYSQL_USER: '${DB_USERNAME}'
+      # MYSQL_PASSWORD: '${DB_PASSWORD}'
+      MYSQL_ALLOW_EMPTY_PASSWORD: 1
+    volumes:
+      - 'mysql:/var/lib/mysql'
+    healthcheck:
+      test:
+        - CMD
+        - mysqladmin
+        - ping
+        - '-p${DB_PASSWORD}'
+      retries: 3
+      timeout: 5s
+    restart: always
+    networks:
+      - shared
+
+  # redis:
+  #   image: 'redis:alpine'
+  #   container_name: laravel-v13-redis
+  #   ports:
+  #     - '${FORWARD_REDIS_PORT:-6379}:6379'
+  #   volumes:
+  #     - 'redis:/data'
+  #   healthcheck:
+  #     test:
+  #       - CMD
+  #       - redis-cli
+  #       - ping
+  #     retries: 3
+  #     timeout: 5s
+  #   restart: always
+  #   networks:
+  #     - shared
+
+  # typesense:
+  #   image: 'typesense/typesense:27.1'
+  #   container_name: laravel-v13-typesense
+  #   ports:
+  #     - '${FORWARD_TYPESENSE_PORT:-8108}:8108'
+  #   environment:
+  #     TYPESENSE_DATA_DIR: '${TYPESENSE_DATA_DIR:-/typesense-data}'
+  #     TYPESENSE_API_KEY: '${TYPESENSE_API_KEY:-xyz}'
+  #     TYPESENSE_ENABLE_CORS: '${TYPESENSE_ENABLE_CORS:-true}'
+  #   volumes:
+  #     - 'typesense:/typesense-data'
+  #   healthcheck:
+  #     test:
+  #       - CMD
+  #       - bash
+  #       - '-c'
+  #       - 'exec 3<>/dev/tcp/localhost/8108 && printf ''GET /health HTTP/1.1\r\nConnection: close\r\n\r\n'' >&3 && head -n1 <&3 | grep ''200'' && exec 3>&-'
+  #     retries: 5
+  #     timeout: 7s
+  #   restart: always
+  #   networks:
+  #     - shared
+
+  # rabbitmq:
+  #   image: 'rabbitmq:4-management-alpine'
+  #   container_name: laravel-v13-rabbitmq
+  #   hostname: rabbitmq
+  #   ports:
+  #     - '${FORWARD_RABBITMQ_PORT:-5672}:5672'
+  #     - '${FORWARD_RABBITMQ_DASHBOARD_PORT:-15672}:15672'
+  #   environment:
+  #     RABBITMQ_HOST: '%'
+  #     RABBITMQ_USER: '${RABBITMQ_USER}'
+  #     RABBITMQ_PASSWORD: '${RABBITMQ_PASSWORD}'
+  #     RABBITMQ_VHOST: '${RABBITMQ_VHOST}'
+  #     RABBITMQ_QUEUE: '${RABBITMQ_QUEUE}'
+  #   volumes:
+  #     - 'rabbitmq:/var/lib/rabbitmq'
+  #   healthcheck:
+  #     test:
+  #       - CMD
+  #       - rabbitmq-diagnostics
+  #       - '-q'
+  #       - ping
+  #     retries: 3
+  #     timeout: 5s
+  #   restart: always
+  #   networks:
+  #     - shared
+
+networks:
+  shared:
+    external: true
+
+volumes:
+  mysql:
+  # redis:
+  # typesense:
+  # rabbitmq:
