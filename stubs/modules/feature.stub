@@ -1,0 +1,23 @@
+<?php
+
+namespace $NAMESPACE$;
+
+use  Modules\Feature\App\Features\Feature;
+
+class $CLASS$ extends Feature
+{
+    /**
+     * The feature's slug.
+     */
+    public string $name = '$CLASS$';
+
+    /**
+     * The feature's display title.
+     */
+    public string $title = '';
+
+    /**
+     * The feature's description.
+     */
+    public string $description = '';
+}
