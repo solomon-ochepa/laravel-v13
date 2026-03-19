@@ -1,0 +1,73 @@
+<?php
+
+namespace $CLASS_NAMESPACE$;
+
+use App\Http\Controllers\Controller;
+use Illuminate\Http\Request;
+
+class $CLASS$ extends Controller
+{
+    /**
+     * Display a listing of the resource.
+     */
+    public function index()
+    {
+        return response()->json([
+            'status' => 'success',
+            'data' => [
+                // 'users' => []
+            ],
+        ]);
+    }
+
+    /**
+     * Store a newly created resource in storage.
+     */
+    public function store(Request $request)
+    {
+        return response()->json([
+            'status' => 'success',
+            'data' => [
+                // 'user' => []
+            ],
+        ]);
+    }
+
+    /**
+     * Show the specified resource.
+     */
+    public function show($id)
+    {
+        return response()->json([
+            'status' => 'success',
+            'data' => [
+                // 'user' => []
+            ],
+        ]);
+    }
+
+    /**
+     * Update the specified resource in storage.
+     */
+    public function update(Request $request, $id)
+    {
+        return response()->json([
+            'status' => 'success',
+            'data' => [
+                // 'user' => []
+            ],
+        ]);
+    }
+
+    /**
+     * Remove the specified resource from storage.
+     */
+    public function destroy($id)
+    {
+        return response()->json([
+            'status' => 'success',
+            'data' => null,
+            'message' => 'Record deleted successfully.',
+        ]);
+    }
+}

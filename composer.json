@@ -12,7 +12,9 @@
         "php": "^8.3",
         "laravel/breeze": "^2.4",
         "laravel/framework": "^13.0",
-        "laravel/tinker": "^3.0"
+        "laravel/tinker": "^3.0",
+        "mhmiton/laravel-modules-livewire": "^1.6",
+        "nwidart/laravel-modules": "dev-master"
     },
     "require-dev": {
         "fakerphp/faker": "^1.23",
@@ -76,6 +78,11 @@
     "extra": {
         "laravel": {
             "dont-discover": []
+        },
+        "merge-plugin": {
+            "include": [
+                "modules/*/composer.json"
+            ]
         }
     },
     "config": {
@@ -84,7 +91,8 @@
         "sort-packages": true,
         "allow-plugins": {
             "pestphp/pest-plugin": true,
-            "php-http/discovery": true
+            "php-http/discovery": true,
+            "wikimedia/composer-merge-plugin": true
         }
     },
     "minimum-stability": "dev",

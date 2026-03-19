@@ -19,7 +19,8 @@ This application is a Laravel application and its main Laravel ecosystems packag
 - laravel/pint (PINT) - v1
 - pestphp/pest (PEST) - v4
 - phpunit/phpunit (PHPUNIT) - v12
-- tailwindcss (TAILWINDCSS) - v4
+- alpinejs (ALPINEJS) - v3
+- tailwindcss (TAILWINDCSS) - v3
 
 ## Skills Activation
 
@@ -135,6 +136,13 @@ protected function isAccessible(User $user, ?string $path = null): bool
 ## PHPDoc Blocks
 
 - Add useful array shape type definitions when appropriate.
+
+=== tests rules ===
+
+# Test Enforcement
+
+- Every change must be programmatically tested. Write a new test or update an existing test, then run the affected tests to make sure they pass.
+- Run the minimum number of tests needed to ensure code quality and speed. Use `php artisan test --compact` with a specific filename or filter.
 
 === laravel/core rules ===
 
