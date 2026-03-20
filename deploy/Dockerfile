@@ -91,6 +91,11 @@ ARG APP_ENV="production"
 ARG WWWGROUP=1000
 ENV APP_ENV=${APP_ENV}
 ENV NODE_ENV=${APP_ENV}
+ENV APACHE_DOCUMENT_ROOT=/var/www/html/public
+
+RUN echo "export APACHE_DOCUMENT_ROOT=/var/www/html/public" >> /etc/apache2/envvars; \
+    sed -ri 's!DocumentRoot /var/www/html!DocumentRoot /var/www/html/public!g' \
+        /etc/apache2/sites-available/000-default.conf
 
 WORKDIR /var/www/html
 
